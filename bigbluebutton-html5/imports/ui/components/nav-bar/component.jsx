@@ -21,6 +21,7 @@ import SessionStorage from '../../services/storage/session';
 import { ModalRegistration } from '../../core/singletons/modalController';
 import browserInfo from '/imports/utils/browserInfo';
 import deviceInfo from '/imports/utils/deviceInfo';
+import withShortcutHelper from '/imports/ui/services/shortcuts/withShortcutHelper';
 
 const intlMessages = defineMessages({
   defaultBreakoutName: {
@@ -151,6 +152,7 @@ class NavBar extends Component {
     super(props);
 
     this.splitPluginItems = this.splitPluginItems.bind(this);
+    this.handleUserListAccessKey = this.handleUserListAccessKey.bind(this);
     this.setModalIsOpen = () => {};
   }
 
@@ -180,16 +182,10 @@ class NavBar extends Component {
     const { isFirefox } = browserInfo;
     const { isMacos } = deviceInfo;
 
-    // accessKey U does not work on firefox for macOS for some unknown reason
+    // Firefox on macOS matches access keys by the typed character, and Option + U is a dead key,
+    // so the user list access key never fires there
     if (isMacos && isFirefox && TOGGLE_USERLIST_AK === 'U') {
-      document.addEventListener('keyup', (event) => {
-        const { key, code } = event;
-        const eventKey = key?.toUpperCase();
-        const eventCode = code;
-        if (event?.altKey && (eventKey === TOGGLE_USERLIST_AK || eventCode === `Key${TOGGLE_USERLIST_AK}`)) {
-          this.handleToggleUserList();
-        }
-      });
+      document.addEventListener('keydown', this.handleUserListAccessKey);
     }
   }
 
@@ -207,6 +203,19 @@ class NavBar extends Component {
 
   componentWillUnmount() {
     clearInterval(this.interval);
+    document.removeEventListener('keydown', this.handleUserListAccessKey);
+  }
+
+  handleUserListAccessKey(event) {
+    const { shortcuts: TOGGLE_USERLIST_AK } = this.props;
+
+    if (!event.ctrlKey || !event.altKey || event.metaKey || event.repeat) return;
+
+    // event.code, because with Option event.key is a special character
+    if (event.code !== `Key${TOGGLE_USERLIST_AK}`) return;
+
+    event.preventDefault();
+    document.querySelector(`[accesskey="${TOGGLE_USERLIST_AK}" i]`)?.click();
   }
 
   splitPluginItems() {
@@ -358,4 +367,4 @@ class NavBar extends Component {
 
 NavBar.propTypes = propTypes;
 NavBar.defaultProps = defaultProps;
-export default injectIntl(NavBar);
+export default withShortcutHelper(injectIntl(NavBar), 'toggleUserList');
